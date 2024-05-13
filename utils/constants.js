@@ -16,7 +16,3 @@ module.exports.USER_ROUTES = {
     REGISTER_USER: '/register-user',
     LOGIN_USER: '/login-user',
 }
-
-module.exports.TEST_ROUTES = {
-    TEST: '/test'
-}
