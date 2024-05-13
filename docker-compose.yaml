@@ -1,0 +1,28 @@
+version: '1.0'
+
+services:
+  mongodb:
+    image: mongo:6-jammy
+    ports:
+      - '27017:27017'
+    volumes:
+      - dbdata6:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: projectDB   
+    command: mongod --bind_ip_all
+
+  backend:
+    build: ./
+    container_name: backend
+    restart: always
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mongodb
+    environment:
+      APP_DB: mongodb://mongodb:27017/projectDB
+      PORT: 3000
+      SECRET: ihurygyhrsorjhuiwyrbsjnfgwuyrgwkjndsjvfysg
+
+volumes:
+  dbdata6:
