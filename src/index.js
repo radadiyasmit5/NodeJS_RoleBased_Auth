@@ -5,12 +5,13 @@ import morgan from "morgan";
 import session from "express-session";
 import passport from "passport";
 import { default as connectMongoDBSession } from "connect-mongodb-session";
-import {initiatePassportMiddleware} from "./passport/passport.local.strategy.js";
+import { initiatePassportMiddleware } from "./passport/passport.local.strategy.js";
 const app = express();
 import { APP_DB, PORT, APP_EXPRESS_SESSION_SECRET } from "./config/index.js";
 import routes from "./routes/index.routes.js";
 import connectDB from "./db/index.js";
 import { errorMiddleware } from "./middlewares/error.middleware.js";
+import cookieParser from "cookie-parser";
 
 const MongoDBStore = connectMongoDBSession(session);
 // mongo db connection for express-session
@@ -27,7 +28,7 @@ app.use(
 app.use(morgan("dev"));
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));
-
+app.use(cookieParser());
 app.use(
   session({
     secret: APP_EXPRESS_SESSION_SECRET,

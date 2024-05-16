@@ -16,7 +16,7 @@ const authenticatorFunc = async (username, password, done) => {
         new ApiError(400, `User not found with provided Username - ${username}`)
       );
     }
-    if (user.password !== password) {
+    if (!user.validatePassword(user.password)) {
       return done(new ApiError(400, `Provided Password is Incorrect`));
     }
     done(null, user);

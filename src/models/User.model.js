@@ -1,8 +1,13 @@
 import { Schema, model } from "mongoose";
 import { USER_SCHEMA, USER_ROLES } from "../utils/constants.js";
 import bcrypt from "bcrypt";
-import { BCRYPT_SALT_ROUNDS } from "../config/index.js";
+import {
+  APP_JWT_ACCESSTOKEN_EXPIRY,
+  APP_JWT_ENCRYPTION_SECRET,
+  APP_JWT_REFRESHTOKEN_EXPIRY,
+} from "../config/index.js";
 import { encryptPassword } from "../utils/bcryptUtils.js";
+import jwt from "jsonwebtoken";
 const UserSchema = new Schema(
   {
     [USER_SCHEMA.NAME]: {
@@ -35,6 +40,9 @@ const UserSchema = new Schema(
       type: String,
       required: [true, "Password is Required"],
     },
+    [USER_SCHEMA.REFRESHTOKEN]: {
+      type: String,
+    },
   },
   { timestamps: true }
 );
@@ -45,7 +53,42 @@ UserSchema.pre("save", async function (next) {
   next();
 });
 
+// method to validate password.
 UserSchema.methods.validatePassword = async function (password) {
   return await bcrypt.compare(password, this.password);
 };
+
+// method to generete accesstoken
+UserSchema.methods.generateAccessToken = async function () {
+  const accessToken = await jwt.sign(
+    {
+      _id: this._id,
+      username: this.username,
+      name: this.name,
+      role: this.role,
+    },
+    APP_JWT_ENCRYPTION_SECRET,
+    {
+      expiresIn: APP_JWT_ACCESSTOKEN_EXPIRY,
+    }
+  );
+
+  return accessToken;
+};
+
+// method to generate refereshToken
+UserSchema.methods.generateRefreshToken = async function () {
+  const refreshToken = await jwt.sign(
+    {
+      _id: this._id,
+    },
+    APP_JWT_ENCRYPTION_SECRET,
+    {
+      expiresIn: APP_JWT_REFRESHTOKEN_EXPIRY,
+    }
+  );
+
+  return refreshToken;
+};
+
 export const User = model("users", UserSchema);

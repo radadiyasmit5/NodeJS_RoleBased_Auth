@@ -6,3 +6,8 @@ export const PORT = process.env.PORT;
 export const BCRYPT_SALT_ROUNDS = process.env.BCRYPT_SALT_ROUNDS;
 export const APP_EXPRESS_SESSION_SECRET =
   process.env.APP_EXPRESS_SESSION_SECRET;
+export const APP_JWT_ENCRYPTION_SECRET = process.env.APP_JWT_ENCRYPTION_SECRET;
+export const APP_JWT_ACCESSTOKEN_EXPIRY =
+  process.env.APP_JWT_ACCESSTOKEN_EXPIRY;
+export const APP_JWT_REFRESHTOKEN_EXPIRY =
+  process.env.APP_JWT_REFRESHTOKEN_EXPIRY;
