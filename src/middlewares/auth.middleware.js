@@ -32,13 +32,17 @@ export const validateJwtandExtractuserInfoMiddleware = async (req, res, next) =>
   try {
     userDetails = await User.findById(userId);
     if (!userDetails) {
-      throw new ApiError(500, error.message || "Something Went Wrong while Looking for user in DB");
+      throw new ApiError(
+        500,
+        "Try to fetch user from Db based on Provided Token , User does not exists"
+      );
     }
   } catch (error) {
     throw new ApiError(500, error.message || "Somethign went wrong while fetching user from DB");
   }
   // append user field in req object with the data we got from DB
   req.user = userDetails;
+  next();
 };
 
 // this middleware is for login route , while req hits the login route - server will call authenticate method from passport and it will return either user or error. in case of error we want to customize the status code and messege, Thats why we are writing this middleware.

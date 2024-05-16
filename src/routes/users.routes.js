@@ -5,7 +5,7 @@ const router = Router();
 import passport from "passport";
 import { validateJwtandExtractuserInfoMiddleware } from "../middlewares/auth.middleware.js";
 import { USER_ROUTES } from "../utils/constants.js";
-import { LoginController, RegisterController } from "../controllers/userController.controller.js";
+import { LoginController, LogoutController, RegisterController } from "../controllers/userController.controller.js";
 
 /**
  * @GENERAL_ROUTE - route for user with any role
@@ -17,6 +17,6 @@ router.post(USER_ROUTES.REGISTER_USER, RegisterController);
 // app.post("/login", loginMiddleware, (req, res, next) => {
 router.post(USER_ROUTES.LOGIN_USER, LoginController);
 
-router.post(USER_ROUTES.LOGOUT_USER, validateJwtandExtractuserInfoMiddleware);
+router.post(USER_ROUTES.LOGOUT_USER, validateJwtandExtractuserInfoMiddleware, LogoutController);
 
 export default router;

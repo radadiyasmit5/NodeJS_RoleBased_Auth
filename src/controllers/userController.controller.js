@@ -1,3 +1,4 @@
+import { APP_JWT_ACCESSTOKEN_EXPIRY_MILLIS, APP_JWT_REFRESHTOKEN_EXPIRY_MILLIS } from "../config/index.js";
 import { User } from "../models/User.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
@@ -22,23 +23,17 @@ export const generateAccessandRefreshToken = async (userId) => {
     try {
       await user.save({ validateBeforeSave: false });
     } catch (error) {
-      throw new ApiError(
-        500,
-        "Something went wrong while saving user with after adding refreshToken"
-      );
+      throw new ApiError(500, "Something went wrong while saving user with after adding refreshToken");
     }
 
     if (!accessToken || !refreshToken) {
-      throw new ApiError(
-        "Error while creating access or refresh Token.expected token value but got null or undefined"
-      );
+      throw new ApiError("Error while creating access or refresh Token.expected token value but got null or undefined");
     }
     return { accessToken, refreshToken };
   } catch (error) {
     throw new ApiError(
       500,
-      error.message ||
-        "Something went wrong while fetching User details inOrder to generate tokens"
+      error.message || "Something went wrong while fetching User details inOrder to generate tokens"
     );
   }
 };
@@ -48,6 +43,9 @@ export const RegisterController = async (req, res, next) => {
   const { name, username, password, email } = req.body;
   if (!username) {
     return next(new ApiError(400, "username is required"));
+  }
+  if (!name) {
+    return next(new ApiError(400, "name is required"));
   }
   if (!password) {
     return next(new ApiError(400, "password is required"));
@@ -76,7 +74,7 @@ export const RegisterController = async (req, res, next) => {
       email,
     });
   } catch (error) {
-    new ApiError(500, "Something went Wrong While saving User");
+    new ApiError(500, error.message || "Something went Wrong While saving User");
   }
 
   //fetching a saved user from DB and creating a response object.
@@ -89,9 +87,7 @@ export const RegisterController = async (req, res, next) => {
   }
 
   // creating access and refresh tokens to send it to UI.
-  const { accessToken, refreshToken } = await generateAccessandRefreshToken(
-    createduser._id
-  );
+  const { accessToken, refreshToken } = await generateAccessandRefreshToken(createduser._id);
 
   //cookie options in order to make it secure and only editable from server
   const cookieOptions = {
@@ -101,8 +97,14 @@ export const RegisterController = async (req, res, next) => {
 
   res
     .status(200)
-    .cookie(TOKENNAMES.ACCESSTOKEN, accessToken, cookieOptions)
-    .cookie(TOKENNAMES.REFRESHTOKEN, refreshToken, cookieOptions)
+    .cookie(TOKENNAMES.ACCESSTOKEN, accessToken, {
+      ...cookieOptions,
+      maxAge: eval(APP_JWT_ACCESSTOKEN_EXPIRY_MILLIS),
+    })
+    .cookie(TOKENNAMES.REFRESHTOKEN, refreshToken, {
+      ...cookieOptions,
+      maxAge: eval(APP_JWT_REFRESHTOKEN_EXPIRY_MILLIS),
+    })
     .json(
       new ApiResponse(
         200,
@@ -132,16 +134,10 @@ export const LoginController = async (req, res, next) => {
       $or: [{ username }, { email }],
     });
     if (!user) {
-      throw new ApiError(
-        500,
-        "Something Went Wrong while Looking for user in DB"
-      );
+      throw new ApiError(500, "Something Went Wrong while Looking for user in DB");
     }
   } catch (error) {
-    throw new ApiError(
-      500,
-      error.message || "Something Went Wrong while Looking for user in DB"
-    );
+    throw new ApiError(500, error.message || "Something Went Wrong while Looking for user in DB");
   }
 
   // by this time we should have a user object from DB, next step is to check for password
@@ -153,36 +149,32 @@ export const LoginController = async (req, res, next) => {
 
   //by this time we should have a user validated with password,next step is to generate access and refresh tokens
   // creating access and refresh tokens to send it to UI.
-  const { accessToken, refreshToken } = await generateAccessandRefreshToken(
-    user._id
-  );
+  const { accessToken, refreshToken } = await generateAccessandRefreshToken(user._id);
   let userwithTokenAdded;
   try {
-    userwithTokenAdded = await User.findById(user._id).select(
-      `-${USER_SCHEMA.PASSWORD} -${USER_SCHEMA.REFRESHTOKEN}`
-    );
+    userwithTokenAdded = await User.findById(user._id).select(`-${USER_SCHEMA.PASSWORD} -${USER_SCHEMA.REFRESHTOKEN}`);
     if (!userwithTokenAdded) {
-      throw new ApiError(
-        500,
-        error.message || "Something Went Wrong while Looking for user in DB"
-      );
+      throw new ApiError(500, error.message || "Something Went Wrong while Looking for user in DB");
     }
   } catch (error) {
-    throw new ApiError(
-      500,
-      error.message ||
-        "Something went wrong while fetching updated user from DB"
-    );
+    throw new ApiError(500, error.message || "Something went wrong while fetching updated user from DB");
   }
   const cookieOptions = {
     httpOnly: "true",
     secure: "true",
   };
 
+  // here we are adding maxAge option to the cookies so that browser will automatically remove the cookie once its expired.
   res
     .status(200)
-    .cookie(TOKENNAMES.ACCESSTOKEN, accessToken, cookieOptions)
-    .cookie(TOKENNAMES.REFRESHTOKEN, refreshToken, cookieOptions)
+    .cookie(TOKENNAMES.ACCESSTOKEN, accessToken, {
+      ...cookieOptions,
+      maxAge: eval(APP_JWT_ACCESSTOKEN_EXPIRY_MILLIS),
+    })
+    .cookie(TOKENNAMES.REFRESHTOKEN, refreshToken, {
+      ...cookieOptions,
+      maxAge: eval(APP_JWT_REFRESHTOKEN_EXPIRY_MILLIS),
+    })
     .json(
       new ApiResponse(
         200,
@@ -192,7 +184,9 @@ export const LoginController = async (req, res, next) => {
     );
 };
 
-export const LogoutController = async (req, res) => {};
+export const LogoutController = async (req, res) => {
+  console.log(req.user);
+};
 // todo
 // logout controller
 // refreshAccesstoken controller
