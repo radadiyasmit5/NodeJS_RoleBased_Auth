@@ -185,10 +185,70 @@ export const LoginController = async (req, res, next) => {
 };
 
 export const LogoutController = async (req, res) => {
-  console.log(req.user);
+  // get the user from req object
+  // by this time user is logged in
+  // remove refresh token from DB
+  // remove tokens from browser
+  // send success refresh
+  const userFromReq = req.user;
+  if (!userFromReq) {
+    next(new ApiError(400, "User not found in Request object"));
+  }
+  const userId = userFromReq?._id;
+  // get the user from DB
+  const userFromDb = User.findById(userId);
+  if (!userFromDb) {
+    next(new ApiError(400, "User does not exists in DB"));
+  }
+  // by this time we have user in DB so remove the refresh token from DB
+  const removeRefreshTokenFromuser = await User.findByIdAndUpdate(
+    userId,
+    {
+      $set: { [USER_SCHEMA.REFRESHTOKEN]: null },
+    },
+    { new: true }
+  );
+
+  //by this time refresh token is removed from DB and we have updated user
+  // if returned document from update query has refresh token , that means token is still not removed from DB
+  if (removeRefreshTokenFromuser?.[USER_SCHEMA.REFRESHTOKEN]) {
+    // if token still exists then throw an error
+    throw new ApiError(500, "refresh token is not removed from DB");
+  }
+  // to remove cookie we are setting maxAge to 0 and cookie to empty string.
+  const cookieOptions = {
+    httpOnly: "true",
+    secure: "true",
+    maxAge: 0,
+  };
+  // remove token from client's cookies
+  res
+    .status(200)
+    .cookie(TOKENNAMES.ACCESSTOKEN, "", cookieOptions)
+    .cookie(TOKENNAMES.REFRESHTOKEN, "", cookieOptions)
+    .json(new ApiResponse(200, "User Loggedout Successfully"));
+};
+
+export const refreshAccessToken = async (req, res) => {
+  // get the refreshtoken
+  // decode the token
+  // get the id from token
+  // check for the expiry
+  // by this time token should be validated and user is vaid user
+  // generat a new access token
+  // send token and add it to the cookie
+
+  //exctract jwt access token
+  const refreshToken = req.cookies?.[TOKENNAMES.REFRESHTOKEN] || req.headers?.authorization?.replace("Bearer ", "");
+
+  if (!refreshToken) {
+    next(new ApiError(401, "Token not found, Unauthorized User."));
+  }
+
+  const decodeToken = await jwt.decode(refreshToken, APP_JWT_ENCRYPTION_SECRET);
 };
 // todo
-// logout controller
+// logout controller - done
 // refreshAccesstoken controller
 
-// create a middleware to validate jwt and extract user info from token and add it to req user
+// create a middleware to validate jwt and extract user info from token and add it to req user - info - done

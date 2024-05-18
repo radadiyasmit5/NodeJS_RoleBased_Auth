@@ -13,8 +13,7 @@ import { User } from "../models/User.model.js";
  */
 
 export const validateJwtandExtractuserInfoMiddleware = async (req, res, next) => {
-  const accessToken =
-    req.cookies?.[TOKENNAMES.ACCESSTOKEN] || req.headers?.authorization?.ƒreplace("Bearer ", "");
+  const accessToken = req.cookies?.[TOKENNAMES.ACCESSTOKEN] || req.headers?.authorization?.replace("Bearer ", "");
 
   if (!accessToken) {
     next(new ApiError(401, "Token not found, Unauthorized User."));
@@ -32,19 +31,46 @@ export const validateJwtandExtractuserInfoMiddleware = async (req, res, next) =>
   try {
     userDetails = await User.findById(userId);
     if (!userDetails) {
-      throw new ApiError(
-        500,
-        "Try to fetch user from Db based on Provided Token , User does not exists"
-      );
+      throw new ApiError(400, "Try to fetch user from Db based on Provided Token , User does not exists");
     }
   } catch (error) {
-    throw new ApiError(500, error.message || "Somethign went wrong while fetching user from DB");
+    next(new ApiError(error.statusCode || 500, error.message || "Somethign went wrong while fetching user from DB"));
   }
   // append user field in req object with the data we got from DB
   req.user = userDetails;
   next();
 };
 
+
+
+
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
 // this middleware is for login route , while req hits the login route - server will call authenticate method from passport and it will return either user or error. in case of error we want to customize the status code and messege, Thats why we are writing this middleware.
 export const loginpassportAuthenticationMiddleware = async (req, res, next) => {
   passport.authenticate("local", function (err, user, info) {
