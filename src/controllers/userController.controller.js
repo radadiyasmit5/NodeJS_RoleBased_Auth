@@ -1,14 +1,20 @@
-import { APP_JWT_ACCESSTOKEN_EXPIRY_MILLIS, APP_JWT_REFRESHTOKEN_EXPIRY_MILLIS } from "../config/index.js";
+import {
+  APP_JWT_ACCESSTOKEN_EXPIRY_MILLIS,
+  APP_JWT_ENCRYPTION_SECRET,
+  APP_JWT_REFRESHTOKEN_EXPIRY_MILLIS,
+} from "../config/index.js";
 import { User } from "../models/User.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { encryptPassword } from "../utils/bcryptUtils.js";
 import { TOKENNAMES, USER_SCHEMA } from "../utils/constants.js";
+import jwt from "jsonwebtoken";
 
 // method to generate access and refresh token
 export const generateAccessandRefreshToken = async (userId) => {
   try {
     const user = await User.findById(userId);
+
     if (!user) {
       throw new Error(
         500,
@@ -31,6 +37,7 @@ export const generateAccessandRefreshToken = async (userId) => {
     }
     return { accessToken, refreshToken };
   } catch (error) {
+    console.log(error);
     throw new ApiError(
       500,
       error.message || "Something went wrong while fetching User details inOrder to generate tokens"
@@ -239,16 +246,65 @@ export const refreshAccessToken = async (req, res) => {
   // send token and add it to the cookie
 
   //exctract jwt access token
-  const refreshToken = req.cookies?.[TOKENNAMES.REFRESHTOKEN] || req.headers?.authorization?.replace("Bearer ", "");
+  const refreshTokenFromReq =
+    req.cookies?.[TOKENNAMES.REFRESHTOKEN] || req.headers?.authorization?.replace("Bearer ", "");
 
-  if (!refreshToken) {
+  if (!refreshTokenFromReq) {
     next(new ApiError(401, "Token not found, Unauthorized User."));
   }
 
-  const decodeToken = await jwt.decode(refreshToken, APP_JWT_ENCRYPTION_SECRET);
-};
-// todo
-// logout controller - done
-// refreshAccesstoken controller
+  const decodeToken = await jwt.decode(refreshTokenFromReq, APP_JWT_ENCRYPTION_SECRET);
+  // check for expiry for token
 
-// create a middleware to validate jwt and extract user info from token and add it to req user - info - done
+  const tokenExpiryMillis = decodeToken?.exp * 1000;
+
+  if (tokenExpiryMillis < Date.now()) {
+    new ApiError(400, "Token is expired Please Login");
+  }
+
+  // check for ID in token
+  if (!decodeToken && !decodeToken?._id) {
+    next(500, "Try to exctract data from token , not Found Data from token");
+  }
+
+  const userId = decodeToken?._id;
+  let user;
+  try {
+    user = await User.findById(userId);
+    console.log(!user);
+    if (!user) {
+      throw new ApiError(
+        500,
+        "got empty user object from DB, expecting user details object. Failed while generating Tokens"
+      );
+    }
+  } catch (error) {
+    console.log(error);
+    throw new ApiError(
+      error.statusCode || 500,
+      error.message || " Something went Worng while fetching user from db",
+      error?.errors,
+      error?.stack
+    );
+  }
+
+  const accessToken = await user.generateAccessToken();
+
+  if (!accessToken) {
+    throw new ApiError(500, "Something went wrong while generating AccessToken");
+  }
+
+  const cookieOptions = {
+    httpOnly: "true",
+    secure: "true",
+  };
+
+  // here we are adding maxAge option to the cookies so that browser will automatically remove the cookie once its expired.
+  res
+    .status(200)
+    .cookie(TOKENNAMES.ACCESSTOKEN, accessToken, {
+      ...cookieOptions,
+      maxAge: eval(APP_JWT_ACCESSTOKEN_EXPIRY_MILLIS),
+    })
+    .json(new ApiResponse(200, { accessToken }, "Successfully Generated AccessToken"));
+};

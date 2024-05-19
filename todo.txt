@@ -1,1 +1,6 @@
+// todo
+// logout controller - done
+// refreshAccesstoken controller - done
+// create a middleware to validate jwt and extract user info from token and add it to req user - info - done
+
 // security - csrf attack prevention - https://stackoverflow.com/questions/65422424/preventing-csrf-with-an-express-api-and-a-react-frontend

@@ -17,6 +17,7 @@ export const USER_ROUTES = {
   REGISTER_USER: "/register-user",
   LOGIN_USER: "/login-user",
   LOGOUT_USER: "/logout",
+  REFRESHACCESSTOKEN:"/refreshaccesstoken"
 };
 
 export const TOKENNAMES = {
