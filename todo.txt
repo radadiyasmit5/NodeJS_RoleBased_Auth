@@ -4,3 +4,6 @@
 // create a middleware to validate jwt and extract user info from token and add it to req user - info - done
 
 // security - csrf attack prevention - https://stackoverflow.com/questions/65422424/preventing-csrf-with-an-express-api-and-a-react-frontend
+// Implement verification rate limiter
+// reset password feat
+// expire verification token sent in email after a particular time when registering

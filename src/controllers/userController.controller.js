@@ -2,6 +2,7 @@ import {
   APP_JWT_ACCESSTOKEN_EXPIRY_MILLIS,
   APP_JWT_ENCRYPTION_SECRET,
   APP_JWT_REFRESHTOKEN_EXPIRY_MILLIS,
+  APP_URL
 } from "../config/index.js";
 import { User } from "../models/User.model.js";
 import { ApiError } from "../utils/ApiError.js";
@@ -9,6 +10,8 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { encryptPassword } from "../utils/bcryptUtils.js";
 import { TOKENNAMES, USER_SCHEMA } from "../utils/constants.js";
 import jwt from "jsonwebtoken";
+import { sendEmail } from "../utils/emailService.js";
+import {generateVerificationEmailBody} from "../utils/emailBody.js";
 
 // method to generate access and refresh token
 export const generateAccessandRefreshToken = async (userId) => {
@@ -44,6 +47,70 @@ export const generateAccessandRefreshToken = async (userId) => {
     );
   }
 };
+
+// method to generate verification token
+export const generateVerificationToken = async (userId) => {
+  try {
+    const user = await User.findById(userId);
+
+    if (!user) {
+      throw new Error(
+        500,
+        "got empty user object from DB, expecting user details object. Failed while generating Verification Token"
+      );
+    }
+
+    const verificationToken = await user.generateVerificationToken();
+
+    user[USER_SCHEMA.VERIFICATIONTOKEN] = verificationToken;
+
+    try {
+      await user.save({ validateBeforeSave: false });
+    } catch (error) {
+      throw new ApiError(500, "Something went wrong while saving user with after adding verification token");
+    }
+
+    if (!verificationToken) {
+      throw new ApiError("Error while creating verification Token. expected token value but got null or undefined");
+    }
+    return { verificationToken };
+  }
+  catch(error) {
+    console.log(error);
+    throw new ApiError(
+      500,
+      error.message || "Something went wrong while fetching User details inOrder to generate verification token"
+    );
+  }
+}
+
+// method to verify user
+const verifyUser = async (userId) => {
+
+  try{
+    const user = await User.findById(userId);
+
+    if (!user) {
+      throw new Error(
+        500,
+        "got empty user object from DB, expecting user details object. Failed while verifying user using Verification Token"
+      );
+    }
+
+    user[USER_SCHEMA.ISVERIFIED] = true;
+    user[USER_SCHEMA.VERIFICATIONTOKEN] = null;
+    try {
+      await user.save({ validateBeforeSave: false });
+    } catch (error) {
+      throw new ApiError(500, "Something went wrong while saving verified user to DB.");
+    }
+  }
+  catch(error) {
+    console.log(error);
+    throw new ApiError(500, error.message || "Something went wrong while verifying user.");
+  }
+
+}
 
 export const RegisterController = async (req, res, next) => {
   // get the userdetails with password and hash the password
@@ -93,32 +160,51 @@ export const RegisterController = async (req, res, next) => {
     new ApiError(500, "Not Able to retrive user after registering.");
   }
 
-  // creating access and refresh tokens to send it to UI.
-  const { accessToken, refreshToken } = await generateAccessandRefreshToken(createduser._id);
+  // creating verification token to send it to UI.
+  const {verificationToken} = await generateVerificationToken(createduser._id);
 
-  //cookie options in order to make it secure and only editable from server
-  const cookieOptions = {
-    httpOnly: "true",
-    secure: "true",
-  };
+  const verificationEmailBody = generateVerificationEmailBody(verificationToken);
+
+  await sendEmail(createduser[USER_SCHEMA.EMAIL], "Please verify your Email!", verificationEmailBody);
 
   res
     .status(200)
-    .cookie(TOKENNAMES.ACCESSTOKEN, accessToken, {
-      ...cookieOptions,
-      maxAge: eval(APP_JWT_ACCESSTOKEN_EXPIRY_MILLIS),
-    })
-    .cookie(TOKENNAMES.REFRESHTOKEN, refreshToken, {
-      ...cookieOptions,
-      maxAge: eval(APP_JWT_REFRESHTOKEN_EXPIRY_MILLIS),
-    })
     .json(
       new ApiResponse(
         200,
-        { createduser, accessToken, refreshToken },
-        "User Saved Successfully, Registration Successfull"
+        {createduser},
+        "User saved successfully, Pending Verification!"
       )
-    );
+    )
+};
+
+export const VerifyController = async (req , res, next) => {
+   const verificationToken = req.params.verificationToken;
+
+   //check for user corrosponding to verification token
+   const existingUser = await User.findOne({ verificationToken }).select(
+    `-${USER_SCHEMA.PASSWORD}`
+  );
+  
+  if (!existingUser) {
+    return next(new ApiError(409, "Invalid Verification token.", []));
+  }
+
+  try {
+    await verifyUser(existingUser[USER_SCHEMA.ID]);
+  }
+  catch(error) {
+    return res.status(error.statusCode).json(new ApiResponse(error.statusCode, null, error.message));
+  }
+
+  res
+    .status(200)
+    .json(new ApiResponse(
+      200,
+      null,
+      "Verification Successful"
+    ));
+   
 };
 
 export const LoginController = async (req, res, next) => {

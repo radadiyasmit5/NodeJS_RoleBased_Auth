@@ -1,6 +1,7 @@
 import { Schema, model } from "mongoose";
 import { USER_SCHEMA, USER_ROLES } from "../utils/constants.js";
 import bcrypt from "bcrypt";
+import crypto from "crypto";
 import {
   APP_JWT_ACCESSTOKEN_EXPIRY,
   APP_JWT_ENCRYPTION_SECRET,
@@ -43,6 +44,13 @@ const UserSchema = new Schema(
     [USER_SCHEMA.REFRESHTOKEN]: {
       type: String,
     },
+    [USER_SCHEMA.ISVERIFIED]: {
+      type: Boolean,
+      default: false
+    },
+    [USER_SCHEMA.VERIFICATIONTOKEN]: {
+      type: String
+    }
   },
   { timestamps: true }
 );
@@ -90,5 +98,11 @@ UserSchema.methods.generateRefreshToken = async function () {
 
   return refreshToken;
 };
+
+//method to generate email verification token
+UserSchema.methods.generateVerificationToken = function () {
+  const verificationToken = crypto.randomBytes(16).toString('hex');
+  return verificationToken;
+}
 
 export const User = model("users", UserSchema);
