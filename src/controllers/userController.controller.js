@@ -48,32 +48,38 @@ export const generateAccessandRefreshToken = async (userId) => {
   }
 };
 
-// method to generate verification token
+/**
+ * Generates a verification token for a given user.
+ *
+ * @param {Object} user - The user object for which the verification token is being generated.
+ * @returns {Promise<Object>} An object containing the created verification token.
+ * @throws {ApiError} Throws an ApiError if any error occurs during token creation or saving.
+ */
 export const generateVerificationToken = async (user) => {
   try {
     const verificationToken = new VerificationToken({
       [VERIFICATION_TOKEN_SCHEMA.USERID]: user[USER_SCHEMA.ID],
-      [VERIFICATION_TOKEN_SCHEMA.EXPIRYDATE]: new Date(Date.now() + APP_VERIFICATIONTOKEN_EXPIRY), // Valid for 24 hours
+      [VERIFICATION_TOKEN_SCHEMA.EXPIRYDATE]: new Date(Date.now() + parseInt(APP_VERIFICATIONTOKEN_EXPIRY, 10)),
     });
 
+    // Generate the token value
     verificationToken[VERIFICATION_TOKEN_SCHEMA.VERIFICATIONTOKEN] = verificationToken.generateVerificationToken();
 
-    try {
-      await verificationToken.save();
-    } catch (error) {
-      throw new ApiError(500, "Something went wrong while saving verification token");
-    }
+    // Save the verification token to the database
+    await verificationToken.save();
 
-    if (!verificationToken) {
-      throw new ApiError("Error while creating verification Token. expected token value but got null or undefined");
-    }
     return { verificationToken };
   } catch (error) {
-    console.log(error);
-    throw new ApiError(
-      500,
-      error.message || "Something went wrong while fetching User details inOrder to generate verification token"
-    );
+    if (error instanceof mongoose.Error.ValidationError) {
+      console.error("Validation error while saving verification token:", error);
+      throw new ApiError(400, "Invalid data provided for verification token");
+    } else if (error instanceof mongoose.Error) {
+      console.error("Mongoose error while saving verification token:", error);
+      throw new ApiError(500, "Database error while saving verification token");
+    } else {
+      console.error("Unexpected error while generating verification token:", error);
+      throw new ApiError(500, error.message || "Something went wrong while generating the verification token");
+    }
   }
 };
 
@@ -137,32 +143,55 @@ export const RegisterController = async (req, res, next) => {
   res.status(200).json(new ApiResponse(200, { createduser }, "User saved successfully, Pending Verification!"));
 };
 
+/**
+ * Controller to verify a user based on the verification token.
+ *
+ * @param {Object} req - The request object, containing the verification token in params.
+ * @param {Object} res - The response object, used to send the response back to the client.
+ * @param {Function} next - The next middleware function in the stack.
+ */
 export const VerifyController = async (req, res, next) => {
   const token = req.params.verificationToken;
 
-  const verificationToken = await VerificationToken.findOne({ [VERIFICATION_TOKEN_SCHEMA.VERIFICATIONTOKEN]: token });
-
-  // Check if token is valid and within expiry.
-  if (!verificationToken || verificationToken.expiryDate < new Date()) {
-    return res.status(404).json({ message: "Invalid or expired token" });
-  }
-
-  // Get user corrosponding to verification token
-  const existingUser = await User.findById(verificationToken[VERIFICATION_TOKEN_SCHEMA.USERID]).select(
-    `-${USER_SCHEMA.PASSWORD}`
-  );
-
   try {
-    existingUser[USER_SCHEMA.ISVERIFIED] = true;
-    await existingUser.save({ validateBeforeSave: false });
-    await VerificationToken.deleteOne(verificationToken);
-  } catch (error) {
-    return res
-      .status(500)
-      .json(new ApiError(500, "Something went wrong while saving verified user or deleting token entry."));
-  }
+    const verificationToken = await VerificationToken.findOne({
+      [VERIFICATION_TOKEN_SCHEMA.VERIFICATIONTOKEN]: token,
+    });
 
-  res.status(200).json(new ApiResponse(200, null, "Verification Successful"));
+    // Check if token is valid and within expiry.
+    if (!verificationToken) {
+      return res.status(404).json(new ApiError(404, "Invalid token"));
+    }
+
+    if (verificationToken[VERIFICATION_TOKEN_SCHEMA.EXPIRYDATE] < new Date()) {
+      return res.status(404).json(new ApiError(404, "Expired token"));
+    }
+
+    // Get user corresponding to verification token
+    const existingUser = await User.findById(verificationToken[VERIFICATION_TOKEN_SCHEMA.USERID]).select(
+      `-${USER_SCHEMA.PASSWORD}`
+    );
+
+    if (!existingUser) {
+      return res.status(404).json(new ApiError(404, "User not found"));
+    }
+
+    // Verify the user and save changes
+    existingUser[USER_SCHEMA.ISVERIFIED] = true;
+
+    try {
+      await existingUser.save({ validateBeforeSave: false });
+      await VerificationToken.deleteOne({ _id: verificationToken._id });
+    } catch (error) {
+      console.error("Error while saving user or deleting verification token:", error);
+      return res.status(500).json(new ApiError(500, "Internal server error while updating user or deleting token"));
+    }
+
+    res.status(200).json(new ApiResponse(200, null, "Verification successful"));
+  } catch (error) {
+    console.error("Unexpected error during verification process:", error);
+    next(new ApiError(500, "Unexpected server error during verification process"));
+  }
 };
 
 export const LoginController = async (req, res, next) => {
