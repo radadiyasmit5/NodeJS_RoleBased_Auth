@@ -105,13 +105,16 @@ export const RegisterController = async (req, res, next) => {
   });
 
   if (existedUser && !existedUser[USER_SCHEMA.ISVERIFIED]) {
-    next(new ApiError(409, "Please verify your email."));
-    return;
-  }
+    const { verificationToken } = await generateVerificationToken(existedUser);
 
-  if (existedUser) {
-    next(new ApiError(409, "User with email or username already exists", []));
-    return;
+    const verificationEmailBody = generateVerificationEmailBody(
+      verificationToken[VERIFICATION_TOKEN_SCHEMA.VERIFICATIONTOKEN]
+    );
+
+    await sendEmail(existedUser[USER_SCHEMA.EMAIL], "Please verify your Email!", verificationEmailBody);
+    return next(new ApiError(409, "Please verify your email."));
+  } else if (existedUser && existedUser[USER_SCHEMA.ISVERIFIED]) {
+    return next(new ApiError(409, "User with email or username already exists", []));
   }
 
   // by this time we are sure that user does not exists in DB, so save this user in DB
