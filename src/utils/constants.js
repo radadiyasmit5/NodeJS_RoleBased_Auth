@@ -8,6 +8,7 @@ export const VERIFICATION_TOKEN_SCHEMA = {
   USERID: "userId",
   VERIFICATIONTOKEN: "verificationToken",
   EXPIRYDATE: "expiryDate",
+  RETRY_ATTEMPTS: "retryAttempts",
 };
 
 export const USER_SCHEMA = {
@@ -28,6 +29,7 @@ export const USER_ROUTES = {
   LOGOUT_USER: "/logout",
   REFRESHACCESSTOKEN: "/refreshaccesstoken",
   VERIFY_USER: "/verify-user/:verificationToken",
+  RESEND_VERIFICATION_TOKEN: "/resend-verificaton-token",
 };
 
 export const TOKENNAMES = {

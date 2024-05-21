@@ -3,7 +3,9 @@
 // refreshAccesstoken controller - done
 // create a middleware to validate jwt and extract user info from token and add it to req user - info - done
 // expire verification token sent in email after a particular time when registering - done
+// implement resend verification token feature - done
+// include verification check in login controller - done
+// Implement verification rate limiter - done (Max Attempt: 5)
 
 // security - csrf attack prevention - https://stackoverflow.com/questions/65422424/preventing-csrf-with-an-express-api-and-a-react-frontend
-// Implement verification rate limiter
 // reset password feat

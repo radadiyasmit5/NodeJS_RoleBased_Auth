@@ -12,6 +12,7 @@ import { TOKENNAMES, USER_SCHEMA, VERIFICATION_TOKEN_SCHEMA } from "../utils/con
 import jwt from "jsonwebtoken";
 import { sendEmail } from "../utils/emailService.js";
 import { generateVerificationEmailBody } from "../utils/emailBody.js";
+import mongoose from "mongoose";
 
 // method to generate access and refresh token
 export const generateAccessandRefreshToken = async (userId) => {
@@ -59,7 +60,6 @@ export const generateVerificationToken = async (user) => {
   try {
     const verificationToken = new VerificationToken({
       [VERIFICATION_TOKEN_SCHEMA.USERID]: user[USER_SCHEMA.ID],
-      [VERIFICATION_TOKEN_SCHEMA.EXPIRYDATE]: new Date(Date.now() + parseInt(APP_VERIFICATIONTOKEN_EXPIRY, 10)),
     });
 
     // Generate the token value
@@ -103,6 +103,11 @@ export const RegisterController = async (req, res, next) => {
   const existedUser = await User.findOne({
     $or: [{ username }, { email }],
   });
+
+  if (existedUser && !existedUser[USER_SCHEMA.ISVERIFIED]) {
+    next(new ApiError(409, "Please verify your email."));
+    return;
+  }
 
   if (existedUser) {
     next(new ApiError(409, "User with email or username already exists", []));
@@ -160,11 +165,11 @@ export const VerifyController = async (req, res, next) => {
 
     // Check if token is valid and within expiry.
     if (!verificationToken) {
-      return res.status(404).json(new ApiError(404, "Invalid token"));
+      return next(new ApiError(404, "Invalid token"));
     }
 
     if (verificationToken[VERIFICATION_TOKEN_SCHEMA.EXPIRYDATE] < new Date()) {
-      return res.status(404).json(new ApiError(404, "Expired token"));
+      return next(new ApiError(404, "Expired token"));
     }
 
     // Get user corresponding to verification token
@@ -173,7 +178,7 @@ export const VerifyController = async (req, res, next) => {
     );
 
     if (!existingUser) {
-      return res.status(404).json(new ApiError(404, "User not found"));
+      return next(new ApiError(404, "User not found"));
     }
 
     // Verify the user and save changes
@@ -184,13 +189,77 @@ export const VerifyController = async (req, res, next) => {
       await VerificationToken.deleteOne({ _id: verificationToken._id });
     } catch (error) {
       console.error("Error while saving user or deleting verification token:", error);
-      return res.status(500).json(new ApiError(500, "Internal server error while updating user or deleting token"));
+      return next(new ApiError(500, "Internal server error while updating user or deleting token"));
     }
 
     res.status(200).json(new ApiResponse(200, null, "Verification successful"));
   } catch (error) {
     console.error("Unexpected error during verification process:", error);
     next(new ApiError(500, "Unexpected server error during verification process"));
+  }
+};
+
+/**
+ * Controller to resend the verification token to the user's email.
+ *
+ * @param {Object} req - The request object, containing the email in the body.
+ * @param {Object} res - The response object, used to send the response back to the client.
+ * @param {Function} next - The next middleware function in the stack.
+ */
+export const ResendVerificationTokenController = async (req, res, next) => {
+  // get email from body
+  const { email } = req.body;
+
+  try {
+    // find user for that email
+    const user = await User.findOne({ [USER_SCHEMA.EMAIL]: email });
+
+    if (!user) {
+      return next(new ApiError(404, "User not found"));
+    }
+
+    // find token for that user
+    let verificationToken = await VerificationToken.findOne({
+      [VERIFICATION_TOKEN_SCHEMA.USERID]: user[USER_SCHEMA.ID],
+    });
+
+    if (verificationToken) {
+      // remove if retry attempt is > 5
+      if (verificationToken[VERIFICATION_TOKEN_SCHEMA.RETRY_ATTEMPTS] > 5) {
+        User.deleteOne(user);
+        VerificationToken.deleteOne(verificationToken);
+        return res.status(409).json(new ApiResponse(409, null, "Max retry attempts exceeded. Register Again."));
+      }
+
+      // generate new token and send in email
+      verificationToken[VERIFICATION_TOKEN_SCHEMA.VERIFICATIONTOKEN] = verificationToken.generateVerificationToken();
+      verificationToken[VERIFICATION_TOKEN_SCHEMA.RETRY_ATTEMPTS] += 1;
+      verificationToken[VERIFICATION_TOKEN_SCHEMA.EXPIRYDATE] = new Date(
+        Date.now() + parseInt(APP_VERIFICATIONTOKEN_EXPIRY, 10)
+      );
+
+      const updatedVerificationToken = await verificationToken.save();
+
+      sendEmail(
+        user[USER_SCHEMA.EMAIL],
+        "Verify your Email",
+        generateVerificationEmailBody(updatedVerificationToken[VERIFICATION_TOKEN_SCHEMA.VERIFICATIONTOKEN])
+      );
+    } else {
+      return next(new ApiError(404, "No token found. Register first"));
+    }
+
+    return res.status(200).json(new ApiResponse(200, null, "Verification email sent successfully"));
+  } catch (error) {
+    if (error instanceof mongoose.Error.ValidationError) {
+      return next(new ApiError(400, "Invalid data provided"));
+    } else if (error instanceof mongoose.Error.DocumentNotFoundError) {
+      return next(new ApiError(404, "User or Token not found"));
+    } else if (error instanceof mongoose.Error) {
+      return next(new ApiError(500, "Database connection error"));
+    } else {
+      return next(new ApiError(500, "Unexpected server error"));
+    }
   }
 };
 
@@ -225,6 +294,10 @@ export const LoginController = async (req, res, next) => {
 
   if (!isPasswordValid) {
     return next(new ApiError(400, "Please enter a valid password"));
+  }
+
+  if (!user[USER_SCHEMA.ISVERIFIED]) {
+    return next(new ApiError(409, "Please verify your email."));
   }
 
   //by this time we should have a user validated with password,next step is to generate access and refresh tokens
