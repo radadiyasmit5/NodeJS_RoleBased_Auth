@@ -1,11 +1,8 @@
 import { Schema, model } from "mongoose";
 import { USER_SCHEMA, USER_ROLES } from "../utils/constants.js";
 import bcrypt from "bcrypt";
-import {
-  APP_JWT_ACCESSTOKEN_EXPIRY,
-  APP_JWT_ENCRYPTION_SECRET,
-  APP_JWT_REFRESHTOKEN_EXPIRY,
-} from "../config/index.js";
+import crypto from "crypto";
+import { APP_JWT_ACCESSTOKEN_EXPIRY, APP_JWT_ENCRYPTION_SECRET, APP_JWT_REFRESHTOKEN_EXPIRY } from "../config/index.js";
 import { encryptPassword } from "../utils/bcryptUtils.js";
 import jwt from "jsonwebtoken";
 const UserSchema = new Schema(
@@ -42,6 +39,10 @@ const UserSchema = new Schema(
     },
     [USER_SCHEMA.REFRESHTOKEN]: {
       type: String,
+    },
+    [USER_SCHEMA.ISVERIFIED]: {
+      type: Boolean,
+      default: false,
     },
   },
   { timestamps: true }
