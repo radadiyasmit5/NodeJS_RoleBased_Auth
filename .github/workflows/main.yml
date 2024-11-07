@@ -18,7 +18,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - uses: radadiyasmit5/digestbot
+    - uses: https://github.com/radadiyasmit5/digestbot
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         signoff: true # optional
