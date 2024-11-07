@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   schedule:
     # At the end of every day
-    - cron: "0 0 * * *"
+    - cron: "* * * * *"
 
 jobs:
   image-update:
