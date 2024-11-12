@@ -29,3 +29,4 @@ jobs:
         title-for-pr: Update images digests # optional
         description-for-pr: Update images digests # optional
         commit-message: Update images digests # optional
+        working-dir: ../
