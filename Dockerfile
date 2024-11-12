@@ -1,4 +1,4 @@
-FROM node:18.20.2:sha256:3a17df2ede55682bccb79e45d71b5213295ce5eae25a0816877b0e548595de1b
+FROM cgr.dev/chainguard/busybox:latest@sha256:257157f6c6aa88dd934dcf6c2f140e42c2653207302788c0ed3bebb91c5311e1
 
 WORKDIR /app
 
